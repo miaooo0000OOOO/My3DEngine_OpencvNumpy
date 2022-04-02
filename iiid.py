@@ -5,31 +5,14 @@ import time
 SCREEN_WIDTH = 720
 SCREEN_HEIGHT = 720
 FPS = 30
-DEBUG = True
+DEBUG = False
 
 RED = [0,0,255]
 GREEN = [0,255,0]
 BLUE = [255,0,0]
 
-
-def unzip_cinema(cinema):
-    """返回使摄影机矩阵分解为3个向量(viewPoint,up,lookAt)
-
-    Args:
-        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
-        以下简记为(v,u,l)
-    cinema = [
-        vx,ux,lx,0;
-        vy,uy,ly,0;
-        vz,uz,lz,0;
-        1 ,0 ,0 ,1
-    ]
-    """    
-    cinema = cinema.T
-    viewPoint = np.array(cinema[0]).T
-    up = np.array(cinema[1]).T
-    lookAt = np.array(cinema[2]).T
-    return viewPoint, up, lookAt
+# 基本变换
+###########################
 
 def CrossProduct(v):
     """返回叉乘(外积)的矩阵表示
@@ -39,10 +22,10 @@ def CrossProduct(v):
         v (np.ndarray): [vx,vy,vz[,any_number]]
     """    
     M = np.array([
-        [0,-v[2],v[1],0],
-        [v[2],0,-v[0],0],
-        [-v[1],v[0],0,0],
-        [0,0,0,1]
+        [0      ,-v[2]  ,v[1]   ,0],
+        [v[2]   ,0      ,-v[0]  ,0],
+        [-v[1]  ,v[0]   ,0      ,0],
+        [0      ,0      ,0      ,1]
     ])
     return M
 
@@ -55,10 +38,10 @@ def S(x):
         以此类推
     """    
     return np.array([
-        [x[0],0,0,0],
-        [0,x[1],0,0],
-        [0,0,x[2],0],
-        [0,0,0,1]
+        [x[0]   ,0      ,0      ,0],
+        [0      ,x[1]   ,0      ,0],
+        [0      ,0      ,x[2]   ,0],
+        [0      ,0      ,0      ,1]
     ])
 
 def T(x):
@@ -70,10 +53,10 @@ def T(x):
         以此类推
     """    
     return np.array([
-        [1,0,0,x[0]],
-        [0,1,0,x[1]],
-        [0,0,1,x[2]],
-        [0,0,0,1]
+        [1      ,0      ,0      ,x[0]],
+        [0      ,1      ,0      ,x[1]],
+        [0      ,0      ,1      ,x[2]],
+        [0      ,0      ,0      ,1]
     ])
 
 def RotateVector(x,y,z):
@@ -85,13 +68,12 @@ def RotateVector(x,y,z):
         z (np.ndarray): [x,y,z[,0]]
     """    
     Trans = np.array([
-        [x[0],y[0],z[0],0],
-        [x[1],y[1],z[1],0],
-        [x[2],y[2],z[2],0],
-        [0,0,0,1]
+        [x[0]   ,y[0]   ,z[0]   ,0],
+        [x[1]   ,y[1]   ,z[1]   ,0],
+        [x[2]   ,y[2]   ,z[2]   ,0],
+        [0      ,0      ,0      ,1]
     ])
     return Trans
-
 
 def RotateAngle(x):
     """返回以原点为中心, 绕x,y,z轴逆时针旋转的矩阵
@@ -122,38 +104,18 @@ def RotateAngle(x):
     return np.dot(Rx,np.dot(Ry,Rz))
 
 def Rodrigues(n, a):
-    """罗德里格斯(Rodrigues)旋转方程, 返回以n为单位轴向量, 逆时针旋转a弧度的矩阵
+    """(可能有Bug / Bug Maybe)
+    罗德里格斯(Rodrigues)旋转方程, 返回以n为单位轴向量, 逆时针旋转a弧度的矩阵
 
     Args:
-        n (np.ndarray): [n_x,n_y,n_z,1]
+        n (np.ndarray): [n_x,n_y,n_z,0]
         n为轴向量
         a (float): 旋转弧度
     """    
-    return np.cos(a)*np.eye(4)+(1-np.cos(a))*n*n.T+np.sin(a)*np.array([
-        [0      ,-n[2]  ,n[1]   ,0],
-        [n[2]   ,0      ,-n[0]  ,0],
-        [-n[1]  ,n[0]   ,0      ,0],
-        [0      ,0      ,0      ,1]
-    ])
+    return np.cos(a)*np.eye(4)+(1-np.cos(a))*n*n.T+np.sin(a)*CrossProduct(n)
 
-def persp2ortho(viewBox):
-    """perspective2orthogonal
-
-    Args:
-        viewBox (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """    
-    n,f = viewBox['n'],viewBox['f']
-    M = np.array([
-        [n,0,0,0],
-        [0,n,0,0],
-        [0,0,n+f,-n*f],
-        [0,0,1,0]
-    ])
-    return M
-
+# 相机和视图框
+###########################
 
 def CinemaTransform(cinema):
     """返回使摄影机坐落于坐标原点, 面向-z方向, 其正上方为y轴的矩阵
@@ -172,6 +134,25 @@ def CinemaTransform(cinema):
     R_view = RotateVector(np.dot(CrossProduct(lookAt),up),up,-lookAt).T
     T_view = T(-viewPoint)
     return np.dot(R_view,T_view)
+
+def unzip_cinema(cinema):
+    """返回使摄影机矩阵分解为3个向量(viewPoint,up,lookAt)
+
+    Args:
+        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
+        以下简记为(v,u,l)
+    cinema = [
+        vx,ux,lx,0;
+        vy,uy,ly,0;
+        vz,uz,lz,0;
+        1 ,0 ,0 ,1
+    ]
+    """    
+    cinema = cinema.T
+    viewPoint = np.array(cinema[0]).T
+    up = np.array(cinema[1]).T
+    lookAt = np.array(cinema[2]).T
+    return viewPoint, up, lookAt
 
 def generateCinema(viewPoint,up,lookAt):
     """返回摄像机矩阵
@@ -196,38 +177,13 @@ def generateCinema(viewPoint,up,lookAt):
     ])
     return cinema
 
-def Viewing(cinema, model, viewBox):
-    model = np.dot(CinemaTransform(cinema), model)
-    xT = np.array([
-        -(viewBox["t"]+viewBox["b"])/2,
-        -(viewBox["l"]+viewBox["r"])/2,
-        -(viewBox["n"]+viewBox["f"])/2])
-    xS1 = np.array([
-        1/(viewBox["t"]-viewBox["b"]),
-        1/(viewBox["l"]-viewBox["r"]),
-        1/(viewBox["n"]-viewBox["f"])])
-    xS2 = np.array([SCREEN_HEIGHT, SCREEN_WIDTH, 1])
-    model = np.dot(S(xS2), np.dot(S(xS1), model))
-    return model
-
-def perspViewing(cinema, model, viewBox):
-    model = np.dot(CinemaTransform(cinema), model)
-    xT = np.array([
-        -(viewBox["t"]+viewBox["b"])/2,
-        -(viewBox["l"]+viewBox["r"])/2,
-        -(viewBox["n"]+viewBox["f"])/2])
-    xS1 = np.array([
-        1/(viewBox["t"]-viewBox["b"]),
-        1/(viewBox["l"]-viewBox["r"]),
-        1/(viewBox["n"]-viewBox["f"])])
-    p2o = persp2ortho(viewBox)
-
-    model = np.dot(S(xS1), model)
-    model = np.dot(p2o, model)
-    model = model/model[3]
-    return model
-
 def isinViewBox(point, viewBox):
+    """点是否在视图框内
+
+    Args:
+        point (np.ndarray): [x,y,z[,1]]
+        viewBox (viewBox): 视图框
+    """    
     t,b,l,r,n,f = viewBox["t"],viewBox["b"],viewBox["l"],viewBox["r"],viewBox["n"],viewBox["f"]
 
     l *= SCREEN_WIDTH
@@ -235,104 +191,139 @@ def isinViewBox(point, viewBox):
     t *= SCREEN_HEIGHT
     b *= SCREEN_HEIGHT
     return (b<=point[0]<=t and r<=point[1]<=l and f<=point[2]<=n)
-        
 
+
+
+# 视图变换
+###########################
+
+def Viewing(cinema, model, viewBox):
+    """返回模型的正交投影
+
+    Args:
+        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)
+        model (np.ndarray): shape=(4,n)
+        viewBox (Dict): 视图框
+    """    
+    model = np.dot(M_ortho(viewBox),model)/model[3]
+    return model
+
+def perspViewing(cinema, model, viewBox):
+    """返回模型的透视投影
+
+    Args:
+        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)
+        model (np.ndarray): shape=(4,n)
+        viewBox (Dict): 视图框
+    """    
+    # M_persp = np.dot(M_ortho(viewBox),M_persp2ortho(viewBox))
+    # if (model[3] == 0).any():
+    #     raise ValueError("任意z坐标应不等于0")
+    # model = np.dot(M_persp,model)/model[3]
+    model = np.dot(M_persp2ortho(viewBox),model)
+    if (model[3] == 0).any():
+        raise ValueError("任意z坐标应不等于0")
+    model = model/model[3]
+    model = np.dot(M_ortho(viewBox),model)
+    return model
+
+def M_persp2ortho(viewBox):
+    """perspective2orthogonal
+    返回透视投影到正交投影的矩阵
+
+    Args:
+        viewBox (np.ndarray): 视图框
+    """    
+    n,f = viewBox['n'],viewBox['f']
+    return np.array([
+        [n,0,0,0],
+        [0,n,0,0],
+        [0,0,n+f,-n*f],
+        [0,0,1,0]
+    ])
+
+def M_ortho(viewBox):
+    xT = np.array([
+        -(viewBox["l"]+viewBox["r"])/2,
+        -(viewBox["t"]+viewBox["b"])/2,
+        -(viewBox["n"]+viewBox["f"])/2])
+    xS = np.array([
+        2/(viewBox["l"]-viewBox["r"]),
+        2/(viewBox["t"]-viewBox["b"]),
+        2/(viewBox["n"]-viewBox["f"])])
+    return np.dot(S(xS),T(xT))   
+
+# 渲染
+###########################
+
+def render(img, model):
+    pointsXY = model[:2][:3].T
+    pointsXY = pointsXY + np.array([SCREEN_HEIGHT/2,SCREEN_WIDTH/2])
+    for i in range(len(model.T)):
+        # if not isinViewBox(model.T[i], viewBox) and not DEBUG:
+        #     continue
+        x = pointsXY[i][1]
+        y = pointsXY[i][0]
+        z = model.T[i][2]
+        if 0<int(x)<SCREEN_WIDTH and 0<int(y)<SCREEN_HEIGHT:
+            color = np.array([255,255,255])
+            z = model.T[i][2]
+            # color = [-z*1.5]*3
+            if 0<=color[0]<=255 and 0<=color[1]<=255 and 0<=color[2]<=255:
+                img[SCREEN_HEIGHT-int(x)][int(y)] = color
+    return img 
+
+
+###########################
 
 if __name__ == '__main__':
-    VIDEO = True
+    from objects import *
+    
+    VIDEO = False
     if VIDEO:
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         video = cv2.VideoWriter('output.avi',fourcc, FPS, (SCREEN_WIDTH,SCREEN_HEIGHT), True)
+    
     img = np.zeros((SCREEN_HEIGHT,SCREEN_WIDTH,3), dtype=np.uint8)
 
-    viewBox = {
-                "t":10,
-                "b":-10,
-                "l":10,
-                "r":-10, 
-                "n":-1.5,
-                "f":-20} # [t,b,l,r,n,f]
-    triangleMesh = np.array([
-        [1,0,0],
-        [0,1,0],
-        [0,0,1],
-        [0,0,0]
-    ])
     cinema = generateCinema([0,0,0],[0,1,0],[0,0,-1])
-
-    cubePoints = np.array([
-        [1,-1,-1,1],
-        [1,1,-1,1],
-        [-1,1,-1,1],
-        [-1,-1,-1,1],
-        [1,-1,1,1],
-        [1,1,1,1],
-        [-1,1,1,1],
-        [-1,-1,1,1]])
-    cubeList = []
-    for i in range(len(cubePoints)):
-        for j in range(len(cubePoints)):
-            if i > j:
-                cubeList.extend(np.linspace(cubePoints[i], cubePoints[j], 200))
-    cubeLines = np.array(cubeList).T
-    cubePoints = cubePoints.T
-
-    C = 1
-    xAxis = np.linspace([0,0,0,1], [C,0,0,1], 100).T
-    yAxis = np.linspace([0,0,0,1], [0,C,0,1], 100).T
-    zAxis = np.linspace([0,0,0,1], [0,0,C,1], 100).T
 
     da = np.pi/180
     a = 0
     start_time = time.time()
     while True:
         img = np.zeros((SCREEN_HEIGHT,SCREEN_WIDTH,3), dtype=np.uint8)
-        a += da
         if a >= 2*np.pi and VIDEO:
             video.release()
-            break
-        
+            break  
         # 模型变换
-        model = np.hstack((xAxis,yAxis,zAxis,cubeLines))
+        model = np.hstack((xAxis,yAxis,zAxis,cubeLines,front))
         #model = cubePoints
         
-        n = np.array([1,1,1,0])/(3**0.5)
         model = np.dot(S([1]*3),model)
-        # model = np.dot(Rodrigues(n,a),model)
+        # n = np.array([1,1,1,0]).T/(3**0.5)
         model = np.dot(RotateAngle([a,a,a]), model)
-        model = np.dot(T([0,0,-5]), model)
+        model = np.dot(T([0,0,-3]), model)
         
         # 视图变换  
-        
+        model = np.dot(CinemaTransform(cinema),model)
         model = perspViewing(cinema, model, viewBox)
         xS2 = np.array([SCREEN_HEIGHT, SCREEN_WIDTH, 1])
         model = np.dot(S(xS2),model)
         # print(model.T[1])
         # 投影
-        pointsXY = model[:2][:3].T
-        for i in range(len(model.T)):
-            if not isinViewBox(model.T[i], viewBox) and False:
-                continue
-            x = pointsXY[i][1]
-            y = pointsXY[i][0]
-            z = model.T[i][2]
-            x += SCREEN_HEIGHT/2
-            y += SCREEN_WIDTH/2
-            if 0<int(x)<SCREEN_WIDTH and 0<int(y)<SCREEN_HEIGHT:
-                # if 0<=i<len(xAxis.T):
-                #     color = RED
-                # elif len(xAxis.T)<=i<len(xAxis.T)+len(yAxis.T):
-                #     color = GREEN
-                # else:
-                #     color = BLUE
-                img[SCREEN_HEIGHT-int(x)][int(y)] = [255,255,255]
+        img = render(img, model)
         if VIDEO:
             video.write(img)
         else:
             cv2.imshow("img", img)
-            # cv2.waitKey(int(1/FPS*1000))
-            cv2.waitKey(0)
+            if DEBUG:
+                cv2.waitKey(0)
+            else:
+                cv2.waitKey(int(1/FPS*1000))
+        a += da
     end_time = time.time()
-    print("耗时{}秒".format(end_time-start_time))
-    print("每帧计算{}个点".format(len(cubeLines.T)))
-    print("FPS:{}".format(FPS))
+    if VIDEO:
+        print("耗时{:.2f}秒".format(end_time-start_time))
+        print("每帧计算{}个点".format(len(cubeLines.T)))
+        print("FPS:{}".format(FPS))
