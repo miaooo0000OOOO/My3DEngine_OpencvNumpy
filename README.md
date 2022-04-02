@@ -8,3 +8,11 @@
 - 环境
 
 python:opencv, numpy
+
+- 运行
+
+python iiid.py
+
+iiid.py是主要文件
+
+main.py是随便写的
