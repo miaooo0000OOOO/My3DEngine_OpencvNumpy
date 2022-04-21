@@ -135,6 +135,12 @@ def M_persp2ortho(viewBox):
     ])
 
 def M_ortho(viewBox):
+    """返回正交投影矩阵,将viewBox中的点压缩到[-1,1]^3的立方体中
+
+    Args:
+        viewBox (dict): 视图框
+
+    """
     xT = np.array([
         -(viewBox["r"]+viewBox["l"])/2,
         -(viewBox["t"]+viewBox["b"])/2,
@@ -146,6 +152,12 @@ def M_ortho(viewBox):
     return np.dot(S(xS),T(xT))   
 
 def M_viewport(width, height):
+    """返回视口变换矩阵
+
+    Args:
+        width (int): 宽
+        height (int): 高
+    """
     w,h = width, height
     return np.array([
         [w/2,0,0,w/2],
