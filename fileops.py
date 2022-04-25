@@ -105,8 +105,8 @@ def getModelFromSTL(stlFILENAME, stlFORMAT = "binary"):
     
 
 if __name__ == '__main__':
-    FILENAME = "wings.stl"
-    V, N, _ = READ_stlascii(FILENAME)
+    FILENAME = "models/wings.stl"
+    V, N, _ = Read_stl(FILENAME)
     # V = np.zeros((3, 3*len(V_)))
     # a_ = np.array([[[1,1,1],[2,2,2],[3,3,3]],[[4,4,4],[5,5,5],[6,6,6]]])
     # a = np.zeros((3, 3*len(a_)))
@@ -124,16 +124,16 @@ if __name__ == '__main__':
 
     SCREEN_WIDTH = 720
     SCREEN_HEIGHT = 720
-    RENDER_CONFIG = {"mapper":"toushi", "fill":True, "line":False, "width":SCREEN_WIDTH, "height":SCREEN_HEIGHT, "fps":10}
+    RENDER_CONFIG = {"mapper":"toushi", "fill":False, "line":True, "width":SCREEN_WIDTH, "height":SCREEN_HEIGHT, "fps":10}
 
     cinema = core.Cinema(
         pos = np.array([0,0,0,1]),
         up = np.array([0,1,0,0]),
         lookAt = np.array([0,0,-1,0]),
         FovY = 80/180*np.pi,
-        aspect = 1,
+        aspect = SCREEN_WIDTH/SCREEN_HEIGHT,
         n = -1,
-        f = -5
+        f = -100
     )
     render = core.Render(SCREEN_WIDTH, SCREEN_HEIGHT)
     window = core.Controller(render, cinema, model, RENDER_CONFIG)

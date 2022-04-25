@@ -174,12 +174,27 @@ class Cinema(Obj3D):
         self.v = np.dot(matrix, v)
     
     def getPos(self):
+        """_summary_
+
+        Returns:
+            np.ndarray: shape=(4,)
+        """
         return self.unzip()[0]
 
     def getUp(self):
+        """_summary_
+
+        Returns:
+            np.ndarray: shape=(4,)
+        """
         return self.unzip()[1]
     
     def getLookAt(self):
+        """_summary_
+
+        Returns:
+            np.ndarray: shape=(4,)
+        """
         return self.unzip()[2]
     
     def normalize(self):
@@ -192,6 +207,12 @@ class Cinema(Obj3D):
         self.v[:,2] = self.v[:,2]/length(self.v[:,2])
         self.v[3,1] = 0
         self.v[3,2] = 0
+
+    def rotate(self, normal, angle):
+        p = self.getPos()
+        self.transform(Rodrigues(normal, angle))
+        self.v[:,0] = p
+        self.normalize()
 
 class Render:
     def __init__(self, width, height):
@@ -241,15 +262,41 @@ class Render:
             pass
         else:
             raise ValueError('config的键"mapper"可选:["透视", "toushi", "persp"] 使用透视投影;["正交", "zhengjiao", "ortho"] 使用正交投影')
+        model.mutiTransform(trans)
+        model.normalize()
+
+        #视锥裁剪
+        triangleList = []
+        for i in range(model.n):
+            t = model.getTriangle(i)
+            if self.triangleInView(t, cinema):
+                triangleList.append(t)
+        model = Obj3D(triangleList)
+
+        trans = []
         trans.append(M_ortho(cinema.viewBox))
         trans.append(M_viewport(self.width, self.height))
         model.mutiTransform(trans)
         model.normalize()
+        print("渲染了{}个三角面".format(model.n))
         for i in range(model.n):
             t = model.getTriangle(i)
-            self.renderOneTriangle(t, config)
-        
+            if self.triangleBigEnough(t, 0):
+                self.renderOneTriangle(t, config)
         return self.img
+
+    def triangleBigEnough(self, triangle, m):
+        t = triangle.v[:2,:].T #2*3
+        p1 = (t[0][0], t[0][1])
+        p2 = (t[1][0], t[1][1])
+        p3 = (t[2][0], t[2][1])
+        xmin = min(p1[0],p2[0],p3[0])
+        xmax = max(p1[0],p2[0],p3[0])
+        ymin = min(p1[1],p2[1],p3[1])
+        ymax = max(p1[1],p2[1],p3[1])
+        xl, yl = xmax-xmin, ymax-ymin
+        return True if xl >= m or yl >= m else False
+
 
     def renderOneTriangle(self, triangle, config):
         """渲染单个三角形
@@ -272,9 +319,22 @@ class Render:
             p1 = (t[0][0], t[0][1])
             p2 = (t[1][0], t[1][1])
             p3 = (t[2][0], t[2][1])
-            cv2.line(self.img, p1, p2, avgc_tup)
-            cv2.line(self.img, p2, p3, avgc_tup)
-            cv2.line(self.img, p3, p1, avgc_tup)
+            try:
+                cv2.line(self.img, p1, p2, avgc_tup)
+                cv2.line(self.img, p2, p3, avgc_tup)
+                cv2.line(self.img, p3, p1, avgc_tup)
+            except:
+                pass
+    
+    def triangleInView(self, triangle, cinema):
+        def pointInView(p, viewBox):
+            x,y,z = p[0],p[1],p[2]
+            v = viewBox
+            return True if v['l']<=x<=v['r'] and v['b']<=y<=v['t'] and v['f']<=z<=v['n'] else False
+        t = triangle.v
+        p1,p2,p3 = t.T[0],t.T[1],t.T[2]
+        vb = cinema.viewBox
+        return True if pointInView(p1, vb) or pointInView(p2, vb) or pointInView(p3, vb) else False
     
     def pointInTriangle(self, triangle, x, y):
         """判断点是否在三角形内(已弃用)
@@ -319,51 +379,61 @@ class Controller():
                 return angle
         azimuth = 0
         elevation = 0
+        renderFlag = True
         while True:
-            self.render.renderTriangles(self.cinema, self.model, self.renderConfig)
+            if renderFlag:
+                self.render.renderTriangles(self.cinema, self.model, self.renderConfig)
             cv2.imshow("Engine3D", self.render.img)
             k = cv2.waitKey(self.waitTime)
 
-            left = np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
-            right = -np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
-            if inputKeyIs(k, "w"):
-                print("w")
-                self.cinema.transform(T(self.cinema.getLookAt()))
-            elif inputKeyIs(k, "s"):
-                print("s")
-                self.cinema.transform(T(-self.cinema.getLookAt()))
-            elif inputKeyIs(k, "a"):
-                print("a")
-                self.cinema.transform(T(left))
-            elif inputKeyIs(k, "d"):
-                print("d")
-                self.cinema.transform(T(right))
-            elif inputKeyIs(k, "q"):       # space
-                print("q")
-                self.cinema.transform(T(self.cinema.getUp()))
-            elif inputKeyIs(k, "e"):
-                print("e")
-                self.cinema.transform(T(-self.cinema.getUp()))
-            elif inputKeyIs(k, "i"):
-                print("i")
-
-                self.cinema.transform(Rodrigues(right, 5/180*np.pi))
-            elif inputKeyIs(k, "k"):
-                print("k")
-                self.cinema.transform(Rodrigues(left, 5/180*np.pi))
-            elif inputKeyIs(k, "j"):
-                print("j")
-                self.cinema.transform(Rodrigues(self.cinema.getUp(), 5/180*np.pi))
-                self.cinema.normalize()
-            elif inputKeyIs(k, "l"):
-                print("l")
-                self.cinema.transform(Rodrigues(-self.cinema.getUp(), 5/180*np.pi))
-                self.cinema.normalize()
-            elif inputKeyIs(k, 27):
-                print("esc")
-                break
-            self.render.clear()
-            #print(k)
+            if k == -1:
+                renderFlag = False
+            else:    
+                renderFlag = True
+                left = np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
+                right = -np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
+                a = 5/180*np.pi
+                if inputKeyIs(k, "w"):
+                    print("w")
+                    self.cinema.transform(T(self.cinema.getLookAt()))
+                elif inputKeyIs(k, "s"):
+                    print("s")
+                    self.cinema.transform(T(-self.cinema.getLookAt()))
+                elif inputKeyIs(k, "a"):
+                    print("a")
+                    self.cinema.transform(T(left))
+                elif inputKeyIs(k, "d"):
+                    print("d")
+                    self.cinema.transform(T(right))
+                elif inputKeyIs(k, "q"):       # space
+                    print("q")
+                    self.cinema.transform(T(self.cinema.getUp()))
+                elif inputKeyIs(k, "e"):
+                    print("e")
+                    self.cinema.transform(T(-self.cinema.getUp()))
+                elif inputKeyIs(k, "i"):
+                    print("i")
+                    self.cinema.rotate(left, a)
+                elif inputKeyIs(k, "k"):
+                    print("k")
+                    self.cinema.rotate(right, a)
+                elif inputKeyIs(k, "j"):
+                    print("j")
+                    self.cinema.rotate(self.cinema.getUp(), a)
+                elif inputKeyIs(k, "l"):
+                    print("l")
+                    self.cinema.rotate(-self.cinema.getUp(), a)
+                elif inputKeyIs(k, "u"):
+                    print("u")
+                    self.cinema.rotate(-self.cinema.getLookAt(), a)
+                elif inputKeyIs(k, "o"):
+                    print("o")
+                    self.cinema.rotate(self.cinema.getLookAt(), a)
+                elif inputKeyIs(k, 27):
+                    print("esc")
+                    break
+                self.render.clear()
+                #print(k)
         
     def __str__(self):
         return "{}\n{}".format(self.cinema.v, self.model.v)
@@ -384,7 +454,7 @@ if __name__ == '__main__':
         FovY = 45/180*np.pi,
         aspect = 1,
         n = -1,
-        f = -5
+        f = -200
     )
     render = Render(SCREEN_WIDTH, SCREEN_HEIGHT)
     window = Controller(render, cinema, model, RENDER_CONFIG)
