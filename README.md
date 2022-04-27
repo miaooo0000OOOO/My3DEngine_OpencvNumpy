@@ -7,13 +7,15 @@
 
 # 截图
 
-![图片](https://raw.githubusercontent.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/screenshot/2022-04-26-22-16-13屏幕截图.png)
+![图片](https://github.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/blob/master/screenshot/2022-04-24-18-09-45%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE.png?raw=true
+)
 
-![图片](https://raw.githubusercontent.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/screenshot/2022-04-27-12-21-11屏幕截图.png)
 
-![图片](https://raw.githubusercontent.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/screenshot/2022-04-24-18-09-45屏幕截图.png)
+![图片](https://github.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/blob/master/screenshot/2022-04-26-22-16-13%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE.png?raw=true)
 
-![图片](https://raw.githubusercontent.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/screenshot/2022-04-27-12-22-14屏幕截图.png)
+![图片](https://github.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/blob/master/screenshot/2022-04-27-12-21-11%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE.png?raw=true)
+
+![图片](https://github.com/miaooo0000OOOO/My3DEngine_OpencvNumpy/blob/master/screenshot/2022-04-27-12-22-14%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE.png?raw=true)
 
 # 环境
 
