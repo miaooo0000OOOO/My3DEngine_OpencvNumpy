@@ -32,11 +32,13 @@ class Obj3D:
         """
         self.n = len(Triangles)
         self.v = np.zeros((4, 3*self.n))
+        self.normal = np.zeros((4, 3*self.n))
         self.color = np.zeros((3, 3*self.n))
         for i in range(self.n):
             self.v[:, 3*i:3*i+3] = Triangles[i].v
-        for i in range(self.n):
+            self.normal[:, 3*i:3*i+3] = Triangles[i].normal
             self.color[:, 3*i:3*i+3] = Triangles[i].color
+            
     
     def getTriangle(self, index):
         """返回三角面
@@ -50,7 +52,7 @@ class Obj3D:
         if not (0<=index<self.n and int(index)==index):
             raise ValueError("index必须是0到self.n-1之间的整数")
         index = index*3
-        return Triangle(self.v[:,index:index+3], self.color[:,index:index+3])
+        return Triangle(self.v[:,index:index+3], self.normal[:,index:index+3], self.color[:,index:index+3])
     
     def mutiTransform(self, matrixs):
         """复合变换
@@ -86,6 +88,9 @@ class Obj3D:
         
     def normalize(self):
         self.v = self.v/self.v[3]
+        n = self.normal
+        n = n/np.sqrt(n[0]**2+n[1]**2+n[2]**2)
+        self.normal = n
     
 class Triangle(Obj3D):
     """三角面
@@ -99,6 +104,14 @@ class Triangle(Obj3D):
         [1  , 1  , 1  ]
     ]
     v.shape = (4,3)
+    normal (np.ndarray)
+    [
+        [v1x, v2x, v3x],
+        [v1y, v2y, v3y],
+        [v1z, v2z, v3z],
+        [0  , 0  , 0  ]
+    ]
+    normal.shape = (4,3)
     color (np.ndarray): 顶点的RGB颜色
     [
         [p1R, p2R, p3R],
@@ -107,14 +120,28 @@ class Triangle(Obj3D):
     ]
     color.shape = (3, 3)
     """
-    def __init__(self,v, color = None):
+    def __init__(self,v, normal = None, color = None):
         if v.shape == (3, 3):
             v = np.row_stack((v, np.array((1,1,1))))
         self.v = v
+
+        self.G = np.sum(self.v, axis=1)/3
+
         if color is None:
             color = np.ones((3,3), dtype=np.uint8)*255
         self.color = color
-    
+
+        if normal is None:
+            p1, p2, p3 = v[:,0], v[:,1], v[:,2]
+            n = np.dot(CrossProduct(p1-p3), p2-p3)
+            n = np.column_stack((n, n, n))
+        elif normal.shape == (3,3):
+            n = np.row_stack((normal, np.array([0,0,0])))
+        else:
+            n = normal
+        n = n/np.sqrt(n[0]**2+n[1]**2+n[2]**2)
+        self.normal = n
+
     def avgColor(self):
         """三个顶点的平均颜色
 
@@ -122,6 +149,9 @@ class Triangle(Obj3D):
             np.ndarray(3,)
         """        
         return np.sum(self.color, axis=1)/3
+
+    def avgNormal(self):
+        return np.sum(self.normal, axis=1)/3
     
 
 
@@ -229,7 +259,7 @@ class Render:
     def clear(self):
         self.img = np.zeros((self.width, self.height, 3), dtype=np.uint8)
 
-    def renderTriangles(self, cinema, triangles, config):
+    def renderTriangles(self, cinema, triangles, lights, config):
         """渲染三角形
 
         Args:
@@ -271,18 +301,22 @@ class Render:
             t = model.getTriangle(i)
             if self.triangleInView(t, cinema):
                 triangleList.append(t)
+        triangleList = sorted(triangleList, key=lambda tr:tr.G[2])
         model = Obj3D(triangleList)
 
+        # 投影变换
         trans = []
         trans.append(M_ortho(cinema.viewBox))
         trans.append(M_viewport(self.width, self.height))
         model.mutiTransform(trans)
         model.normalize()
+
         print("渲染了{}个三角面".format(model.n))
+        
         for i in range(model.n):
             t = model.getTriangle(i)
-            if self.triangleBigEnough(t, 0):
-                self.renderOneTriangle(t, config)
+            # if self.triangleBigEnough(t, 0):
+            self.renderOneTriangle(t, lights, cinema, config)
         return self.img
 
     def triangleBigEnough(self, triangle, m):
@@ -298,15 +332,17 @@ class Render:
         return True if xl >= m or yl >= m else False
 
 
-    def renderOneTriangle(self, triangle, config):
+    def renderOneTriangle(self, triangle, lights, cinema, config):
         """渲染单个三角形
 
         Args:
             triangle (Triangle): 三角面
             config (dict): 配置
         """
+        nm = triangle.avgNormal()
+        lt = lights[0]
+
         avgc = triangle.avgColor()
-        avgc_tup = (int(avgc[0]), int(avgc[1]), int(avgc[2]))
         t = triangle.v[:2,:].T #2*3
         t = t.astype(np.int64)
         # for x in range(int(np.min(t,axis=1)[0]), int(np.max(t,axis=1)[0])):
@@ -314,8 +350,11 @@ class Render:
         #         if self.pointInTriangle(triangle, x+0.5, y+0.5):
         #             img[y][x] = avgc
         if config["fill"]:
+            avgc = avgc*max(0, np.dot(nm, lt))
+            avgc_tup = (int(avgc[0]), int(avgc[1]), int(avgc[2]))
             self.img = cv2.fillConvexPoly(self.img, t, avgc_tup)
         if config["line"]:
+            avgc_tup = (int(avgc[0]), int(avgc[1]), int(avgc[2]))
             p1 = (t[0][0], t[0][1])
             p2 = (t[1][0], t[1][1])
             p3 = (t[2][0], t[2][1])
@@ -358,12 +397,13 @@ class Render:
             return False
 
 class Controller():
-    def __init__(self, render, cinema, model, renderConfig):
+    def __init__(self, render, cinema, model, lights, renderConfig):
         self.render = Render(renderConfig["width"], renderConfig["height"])
         self.model = model
         self.cinema = cinema
         self.renderConfig = renderConfig
         self.waitTime = int(1/renderConfig["fps"]*1000)
+        self.lights = lights
     
     def mainloop(self):
         def inputKeyIs(inputKey, value):
@@ -382,7 +422,7 @@ class Controller():
         renderFlag = True
         while True:
             if renderFlag:
-                self.render.renderTriangles(self.cinema, self.model, self.renderConfig)
+                self.render.renderTriangles(self.cinema, self.model, self.lights, self.renderConfig)
             cv2.imshow("Engine3D", self.render.img)
             k = cv2.waitKey(self.waitTime)
 
@@ -429,6 +469,14 @@ class Controller():
                 elif inputKeyIs(k, "o"):
                     print("o")
                     self.cinema.rotate(self.cinema.getLookAt(), a)
+                elif inputKeyIs(k, "f"):
+                    print("f")
+                    if self.renderConfig['line']:
+                        self.renderConfig['line'] = False
+                        self.renderConfig['fill'] = True
+                    else:
+                        self.renderConfig['line'] = True
+                        self.renderConfig['fill'] = False
                 elif inputKeyIs(k, 27):
                     print("esc")
                     break
@@ -445,10 +493,10 @@ if __name__ == '__main__':
     SCREEN_HEIGHT = 720
     RENDER_CONFIG = {"mapper":"toushi", "fill":True, "line":False, "width":SCREEN_WIDTH, "height":SCREEN_HEIGHT, "fps":10}
 
-    t = Triangle(triangleMesh, np.ones((3,3))*255)
+    t = Triangle(triangleMesh)
     model = Obj3D([t])
     cinema = Cinema(
-        pos = np.array([0,0,0,1]),
+        pos = np.array([0,0,10,1]),
         up = np.array([0,1,0,0]),
         lookAt = np.array([0,0,-1,0]),
         FovY = 45/180*np.pi,
@@ -456,6 +504,7 @@ if __name__ == '__main__':
         n = -1,
         f = -200
     )
+    light = np.array([1,0,0,0])
     render = Render(SCREEN_WIDTH, SCREEN_HEIGHT)
-    window = Controller(render, cinema, model, RENDER_CONFIG)
+    window = Controller(render, cinema, model, [light], RENDER_CONFIG)
     window.mainloop()
