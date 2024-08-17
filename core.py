@@ -155,7 +155,7 @@ class Triangle(Obj3D):
     
 
 
-class Cinema(Obj3D):
+class Camera(Obj3D):
     """摄像机
 
     v : p:pos, u:up, l:lookAt
@@ -188,15 +188,15 @@ class Cinema(Obj3D):
         self.viewBox = {"t":t,"b":b,"l":l,"r":r, "n":n,"f":f} # [t,b,l,r,n,f]
 
     def unzip(self):
-        """解压Cinema
+        """解压Camera
 
         Returns:
             tuple : (viewPoint, up, lookAt)
         """
-        cinema = self.v.T
-        viewPoint = np.array(cinema[0]).T
-        up = np.array(cinema[1]).T
-        lookAt = np.array(cinema[2]).T
+        camera = self.v.T
+        viewPoint = np.array(camera[0]).T
+        up = np.array(camera[1]).T
+        lookAt = np.array(camera[2]).T
         return viewPoint, up, lookAt
     
     def transform(self, matrix):
@@ -259,11 +259,11 @@ class Render:
     def clear(self):
         self.img = np.zeros((self.width, self.height, 3), dtype=np.uint8)
 
-    def renderTriangles(self, cinema, triangles, lights, config):
+    def renderTriangles(self, camera, triangles, lights, config):
         """渲染三角形
 
         Args:
-            cinema (Cinema): 摄像机
+            camera (Camera): 摄像机
             model (Obj3D): 3D模型
             config (dict): 配置
                 mapper:投影方法
@@ -283,10 +283,10 @@ class Render:
         if "mapper" not in config or "fill" not in config or "line" not in config:
             raise ValueError("config缺少键")
         trans = []
-        trans.append(CinemaTransform(cinema))
+        trans.append(CameraTransform(camera))
         if config["mapper"] in ["透视", "toushi", "persp"]:
             #透视投影
-            trans.append(M_persp2ortho(cinema.viewBox))
+            trans.append(M_persp2ortho(camera.viewBox))
         elif config["mapper"] in ["正交", "zhengjiao", "ortho"]:
             #正交投影
             pass
@@ -299,14 +299,14 @@ class Render:
         triangleList = []
         for i in range(model.n):
             t = model.getTriangle(i)
-            if self.triangleInView(t, cinema):
+            if self.triangleInView(t, camera):
                 triangleList.append(t)
         triangleList = sorted(triangleList, key=lambda tr:tr.G[2])
         model = Obj3D(triangleList)
 
         # 投影变换
         trans = []
-        trans.append(M_ortho(cinema.viewBox))
+        trans.append(M_ortho(camera.viewBox))
         trans.append(M_viewport(self.width, self.height))
         model.mutiTransform(trans)
         model.normalize()
@@ -316,7 +316,7 @@ class Render:
         for i in range(model.n):
             t = model.getTriangle(i)
             # if self.triangleBigEnough(t, 0):
-            self.renderOneTriangle(t, lights, cinema, config)
+            self.renderOneTriangle(t, lights, camera, config)
         return self.img
 
     def triangleBigEnough(self, triangle, m):
@@ -332,7 +332,7 @@ class Render:
         return True if xl >= m or yl >= m else False
 
 
-    def renderOneTriangle(self, triangle, lights, cinema, config):
+    def renderOneTriangle(self, triangle, lights, camera, config):
         """渲染单个三角形
 
         Args:
@@ -365,14 +365,14 @@ class Render:
             except:
                 pass
     
-    def triangleInView(self, triangle, cinema):
+    def triangleInView(self, triangle, camera):
         def pointInView(p, viewBox):
             x,y,z = p[0],p[1],p[2]
             v = viewBox
             return True if v['l']<=x<=v['r'] and v['b']<=y<=v['t'] and v['f']<=z<=v['n'] else False
         t = triangle.v
         p1,p2,p3 = t.T[0],t.T[1],t.T[2]
-        vb = cinema.viewBox
+        vb = camera.viewBox
         return True if pointInView(p1, vb) or pointInView(p2, vb) or pointInView(p3, vb) else False
     
     def pointInTriangle(self, triangle, x, y):
@@ -397,10 +397,10 @@ class Render:
             return False
 
 class Controller():
-    def __init__(self, render, cinema, model, lights, renderConfig):
+    def __init__(self, render, camera, model, lights, renderConfig):
         self.render = Render(renderConfig["width"], renderConfig["height"])
         self.model = model
-        self.cinema = cinema
+        self.camera = camera
         self.renderConfig = renderConfig
         self.waitTime = int(1/renderConfig["fps"]*1000)
         self.lights = lights
@@ -422,7 +422,7 @@ class Controller():
         renderFlag = True
         while True:
             if renderFlag:
-                self.render.renderTriangles(self.cinema, self.model, self.lights, self.renderConfig)
+                self.render.renderTriangles(self.camera, self.model, self.lights, self.renderConfig)
             cv2.imshow("Engine3D", self.render.img)
             k = cv2.waitKey(self.waitTime)
 
@@ -430,45 +430,45 @@ class Controller():
                 renderFlag = False
             else:    
                 renderFlag = True
-                left = np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
-                right = -np.dot(CrossProduct(self.cinema.getUp()), self.cinema.getLookAt())
+                left = np.dot(CrossProduct(self.camera.getUp()), self.camera.getLookAt())
+                right = -np.dot(CrossProduct(self.camera.getUp()), self.camera.getLookAt())
                 a = 5/180*np.pi
                 if inputKeyIs(k, "w"):
                     print("w")
-                    self.cinema.transform(T(self.cinema.getLookAt()))
+                    self.camera.transform(T(self.camera.getLookAt()))
                 elif inputKeyIs(k, "s"):
                     print("s")
-                    self.cinema.transform(T(-self.cinema.getLookAt()))
+                    self.camera.transform(T(-self.camera.getLookAt()))
                 elif inputKeyIs(k, "a"):
                     print("a")
-                    self.cinema.transform(T(left))
+                    self.camera.transform(T(left))
                 elif inputKeyIs(k, "d"):
                     print("d")
-                    self.cinema.transform(T(right))
+                    self.camera.transform(T(right))
                 elif inputKeyIs(k, "q"):       # space
                     print("q")
-                    self.cinema.transform(T(self.cinema.getUp()))
+                    self.camera.transform(T(self.camera.getUp()))
                 elif inputKeyIs(k, "e"):
                     print("e")
-                    self.cinema.transform(T(-self.cinema.getUp()))
+                    self.camera.transform(T(-self.camera.getUp()))
                 elif inputKeyIs(k, "i"):
                     print("i")
-                    self.cinema.rotate(left, a)
+                    self.camera.rotate(left, a)
                 elif inputKeyIs(k, "k"):
                     print("k")
-                    self.cinema.rotate(right, a)
+                    self.camera.rotate(right, a)
                 elif inputKeyIs(k, "j"):
                     print("j")
-                    self.cinema.rotate(self.cinema.getUp(), a)
+                    self.camera.rotate(self.camera.getUp(), a)
                 elif inputKeyIs(k, "l"):
                     print("l")
-                    self.cinema.rotate(-self.cinema.getUp(), a)
+                    self.camera.rotate(-self.camera.getUp(), a)
                 elif inputKeyIs(k, "u"):
                     print("u")
-                    self.cinema.rotate(-self.cinema.getLookAt(), a)
+                    self.camera.rotate(-self.camera.getLookAt(), a)
                 elif inputKeyIs(k, "o"):
                     print("o")
-                    self.cinema.rotate(self.cinema.getLookAt(), a)
+                    self.camera.rotate(self.camera.getLookAt(), a)
                 elif inputKeyIs(k, "f"):
                     print("f")
                     if self.renderConfig['line']:
@@ -484,7 +484,7 @@ class Controller():
                 #print(k)
         
     def __str__(self):
-        return "{}\n{}".format(self.cinema.v, self.model.v)
+        return "{}\n{}".format(self.camera.v, self.model.v)
 
 
 
@@ -495,7 +495,7 @@ if __name__ == '__main__':
 
     t = Triangle(triangleMesh)
     model = Obj3D([t])
-    cinema = Cinema(
+    camera = Camera(
         pos = np.array([0,0,10,1]),
         up = np.array([0,1,0,0]),
         lookAt = np.array([0,0,-1,0]),
@@ -506,5 +506,5 @@ if __name__ == '__main__':
     )
     light = np.array([1,0,0,0])
     render = Render(SCREEN_WIDTH, SCREEN_HEIGHT)
-    window = Controller(render, cinema, model, [light], RENDER_CONFIG)
+    window = Controller(render, camera, model, [light], RENDER_CONFIG)
     window.mainloop()

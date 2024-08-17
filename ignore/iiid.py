@@ -15,33 +15,33 @@ BLUE = [255,0,0]
 # 相机和视图框
 ###########################
 
-def unzip_cinema(cinema):
+def unzip_camera(camera):
     """返回使摄影机矩阵分解为3个向量(viewPoint,up,lookAt)
 
     Args:
-        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
+        camera (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
         以下简记为(v,u,l)
-    cinema = [
+    camera = [
         vx,ux,lx,0;
         vy,uy,ly,0;
         vz,uz,lz,0;
         1 ,0 ,0 ,1
     ]
     """    
-    cinema = cinema.T
-    viewPoint = np.array(cinema[0]).T
-    up = np.array(cinema[1]).T
-    lookAt = np.array(cinema[2]).T
+    camera = camera.T
+    viewPoint = np.array(camera[0]).T
+    up = np.array(camera[1]).T
+    lookAt = np.array(camera[2]).T
     return viewPoint, up, lookAt
 
-def generateCinema(viewPoint,up,lookAt):
+def generateCamera(viewPoint,up,lookAt):
     """返回摄像机矩阵
 
     Args:
         viewPoint (np.ndarray): xyz
         up (np.ndarray): ...
         lookAt (np.ndarray): ...
-    cinema = [
+    camera = [
         vx,ux,lx,0;
         vy,uy,ly,0;
         vz,uz,lz,0;
@@ -49,13 +49,13 @@ def generateCinema(viewPoint,up,lookAt):
     ]
     """    
     v,u,l = viewPoint,up,lookAt
-    cinema = np.array([
+    camera = np.array([
         [v[0],u[0],l[0],0],
         [v[1],u[1],l[1],0],
         [v[2],u[2],l[2],0],
         [1 ,0 ,0 ,1]
     ])
-    return cinema
+    return camera
 
 def isinViewBox(point, viewBox):
     """点是否在视图框内
@@ -77,22 +77,22 @@ def isinViewBox(point, viewBox):
 # 视图变换
 ###########################
 
-def Viewing(cinema, model, viewBox):
+def Viewing(camera, model, viewBox):
     """返回模型的正交投影
 
     Args:
-        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)
+        camera (np.ndarray): 摄影机(viewPoint,up,lookAt)
         model (np.ndarray): shape=(4,n)
         viewBox (Dict): 视图框
     """    
     model = np.dot(M_ortho(viewBox),model)/model[3]
     return model
 
-def perspViewing(cinema, model, viewBox):
+def perspViewing(camera, model, viewBox):
     """返回模型的透视投影
 
     Args:
-        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)
+        camera (np.ndarray): 摄影机(viewPoint,up,lookAt)
         model (np.ndarray): shape=(4,n)
         viewBox (Dict): 视图框
     """    
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     
     img = np.zeros((SCREEN_HEIGHT,SCREEN_WIDTH,3), dtype=np.uint8)
 
-    cinema = generateCinema([0,0,0],[0,1,0],[0,0,-1])
+    camera = generateCamera([0,0,0],[0,1,0],[0,0,-1])
 
     da = np.pi/180
     a = 0
@@ -158,8 +158,8 @@ if __name__ == '__main__':
         model = np.dot(T([0,0,-3]), model)
         
         # 视图变换  
-        model = np.dot(CinemaTransform(cinema),model)
-        model = perspViewing(cinema, model, viewBox)
+        model = np.dot(CameraTransform(camera),model)
+        model = perspViewing(camera, model, viewBox)
         xS2 = np.array([SCREEN_HEIGHT, SCREEN_WIDTH, 1])
         model = np.dot(S(xS2),model)
         model = model/model[3]

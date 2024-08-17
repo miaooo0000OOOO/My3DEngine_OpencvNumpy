@@ -100,20 +100,20 @@ def Rodrigues(n, a):
     """    
     return np.cos(a)*np.eye(4)+(1-np.cos(a))*n*n.T+np.sin(a)*CrossProduct(n)
 
-def CinemaTransform(cinema):
+def CameraTransform(camera):
     """返回使摄影机坐落于坐标原点, 面向-z方向, 其正上方为y轴的矩阵
 
     Args:
-        cinema (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
+        camera (np.ndarray): 摄影机(viewPoint,up,lookAt)分别为(摄影机坐标，表示摄影机正上方的单位向量，表示摄影机正前方的单位向量)
         以下简记为(v,u,l)
-    cinema = [
+    camera = [
         vx,ux,lx,0;
         vy,uy,ly,0;
         vz,uz,lz,0;
         1 ,0 ,0 ,1
     ]
     """    
-    viewPoint,up,lookAt = cinema.unzip()
+    viewPoint,up,lookAt = camera.unzip()
     R_view = RotateVector(np.dot(CrossProduct(lookAt),up),up,-lookAt).T
     T_view = T(-viewPoint)
     return np.dot(R_view,T_view)
